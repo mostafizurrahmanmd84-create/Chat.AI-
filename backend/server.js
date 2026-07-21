@@ -1,9 +1,83 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
 // Load environment variables from the backend/.env file.
 dotenv.config();
+
+const developerIdentityResponse = 'My developer is Mostafizur Rahman. This AI model was developed by Mostafizur Rahman and is powered by an AI model through.';
+const developerIdentitySystemPrompt = `You are Mostafizur AI.
+
+This application was developed by Mostafizur Rahman.
+
+If anyone asks:
+- Who is your developer?
+- Who created you?
+- Who made you?
+- Who built this app?
+
+Always answer:
+
+"My developer is Mostafizur Rahman."
+
+If someone asks about the AI model or technology, answer:
+
+"This application was developed by Mostafizur Rahman and is powered by an open-source AI model through the Groq API."
+
+Do not claim that this application was developed by Meta, OpenAI, Google, or Groq.`;
+
+const developerIdentityPatterns = [
+  /\bwho is your developer\b/i,
+  /\bwho created you\b/i,
+  /\bwho made you\b/i,
+  /\bwho built you\b/i,
+  /\bdeveloper\??\b/i,
+  /\bcreator\??\b/i,
+  /\bwho owns this app\b/i,
+  /\bwho developed this application\b/i,
+  /\bwho built this app\b/i,
+  /\bwho built this application\b/i
+];
+
+const isDeveloperIdentityQuestion = (message) => {
+  const normalizedMessage = message
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return developerIdentityPatterns.some((pattern) => pattern.test(normalizedMessage));
+};
+
+const buildChatMessages = (message) => [
+  { role: 'system', content: developerIdentitySystemPrompt },
+  { role: 'user', content: message }
+];
+
+const getProviderConfig = (useProvider) => {
+  if (useProvider === 'openai') {
+    return {
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      name: 'OpenAI',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    };
+  }
+
+  if (useProvider === 'groq') {
+    return {
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      name: 'Groq',
+      model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant'
+    };
+  }
+
+  return {
+    endpoint: 'https://api.cohere.com/v2/chat',
+    name: 'Cohere',
+    model: process.env.COHERE_MODEL || 'command-r-plus'
+  };
+};
 
 const app = express();
 // Fall back to 5009 if the environment does not specify a port.
@@ -13,8 +87,20 @@ const requestedPort = Number(process.env.PORT || 5009);
 app.use(cors());
 app.use(express.json());
 
+const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.use(express.static(frontendDistPath));
+
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API route not found.' });
+  }
+
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 // Receive chat messages from the frontend and forward them to the configured provider.
@@ -24,6 +110,10 @@ app.post('/api/chat', async (req, res) => {
 
     if (!message || typeof message !== 'string' || message.trim() === '') {
       return res.status(400).json({ error: 'A non-empty message is required.' });
+    }
+
+    if (isDeveloperIdentityQuestion(message)) {
+      return res.json({ reply: developerIdentityResponse });
     }
 
     const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.COHERE_API_KEY || process.env.API_KEY;
@@ -38,26 +128,19 @@ app.post('/api/chat', async (req, res) => {
     let response;
     let data;
     let reply;
-    let model;
     let rawMessage;
 
     if (useProvider === 'openai' || useProvider === 'groq') {
-      const isGroq = useProvider === 'groq';
-      model = isGroq ? (process.env.GROQ_MODEL || 'llama-3.1-8b-instant') : (process.env.OPENAI_MODEL || 'gpt-4o-mini');
-      const endpoint = isGroq
-        ? 'https://api.groq.com/openai/v1/chat/completions'
-        : 'https://api.openai.com/v1/chat/completions';
-      const providerName = isGroq ? 'Groq' : 'OpenAI';
-
-      response = await fetch(endpoint, {
+      const providerConfig = getProviderConfig(useProvider);
+      response = await fetch(providerConfig.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: message }],
+          model: providerConfig.model,
+          messages: buildChatMessages(message),
           temperature: 0.2
         })
       });
@@ -65,23 +148,23 @@ app.post('/api/chat', async (req, res) => {
       data = await response.json();
 
       if (!response.ok) {
-        rawMessage = data?.error?.message || `${providerName} API request failed.`;
+        rawMessage = data?.error?.message || `${providerConfig.name} API request failed.`;
         const lower = rawMessage.toLowerCase();
         let userMessage = rawMessage;
         let statusCode = response.status;
 
         if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('rate limit exceeded')) {
-          userMessage = `${providerName} quota has been reached or is not available for this API key. Please check your ${providerName} plan or use a different key.`;
+          userMessage = `${providerConfig.name} quota has been reached or is not available for this API key. Please check your ${providerConfig.name} plan or use a different key.`;
           statusCode = 429;
         } else if (lower.includes('model') && lower.includes('not found')) {
-          userMessage = `The ${providerName} model '${model}' is unavailable. Update ${isGroq ? 'GROQ_MODEL' : 'OPENAI_MODEL'} in backend/.env to a supported model.`;
+          userMessage = `The ${providerConfig.name} model '${providerConfig.model}' is unavailable. Update ${providerConfig.name === 'Groq' ? 'GROQ_MODEL' : 'OPENAI_MODEL'} in backend/.env to a supported model.`;
           statusCode = 400;
         } else if (lower.includes('permission') || lower.includes('access denied')) {
-          userMessage = `Your ${providerName} API key does not have permission to access this model. Check your ${providerName} account settings.`;
+          userMessage = `Your ${providerConfig.name} API key does not have permission to access this model. Check your ${providerConfig.name} account settings.`;
           statusCode = 403;
         }
 
-        console.error(`${providerName} API error:`, rawMessage, data);
+        console.error(`${providerConfig.name} API error:`, rawMessage, data);
         return res.status(statusCode).json({ error: userMessage, details: rawMessage });
       }
 
@@ -89,16 +172,16 @@ app.post('/api/chat', async (req, res) => {
       return res.json({ reply });
     }
 
-    model = process.env.COHERE_MODEL || 'command-r-plus';
-    response = await fetch('https://api.cohere.com/v2/chat', {
+    const providerConfig = getProviderConfig(useProvider);
+    response = await fetch(providerConfig.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: message }],
+        model: providerConfig.model,
+        messages: buildChatMessages(message),
         temperature: 0.2
       })
     });
@@ -115,7 +198,7 @@ app.post('/api/chat', async (req, res) => {
         userMessage = 'Cohere quota has been reached or is not available for this API key. Please check your Cohere plan or use a different key.';
         statusCode = 429;
       } else if (lower.includes('model') && lower.includes('not found')) {
-        userMessage = `The Cohere model '${model}' is unavailable. Update COHERE_MODEL in backend/.env to a supported model.`;
+        userMessage = `The Cohere model '${providerConfig.model}' is unavailable. Update COHERE_MODEL in backend/.env to a supported model.`;
         statusCode = 400;
       } else if (lower.includes('permission') || lower.includes('access denied')) {
         userMessage = 'Your Cohere API key does not have permission to access the model. Check your Cohere account settings.';

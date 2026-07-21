@@ -1,7 +1,7 @@
 {
   "name": "ai-assistant-backend",
   "version": "1.0.0",
-  "description": "Express backend for a Cohere-powered AI assistant",
+  "description": "Express backend for the local AI assistant",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
