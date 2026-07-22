@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import './App.css';
 
-const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5009';
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://chat-ai-1-rcf0.onrender.com';
 
 const starterMessages = [
   {
