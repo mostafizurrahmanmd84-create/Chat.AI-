@@ -117,7 +117,7 @@ function App() {
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Ask Cohere anything..."
+            placeholder="Ask me anything..."
             rows={1}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
