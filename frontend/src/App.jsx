@@ -7,7 +7,7 @@ const starterMessages = [
   {
     id: 1,
     role: 'assistant',
-    content: 'Hello! I am your AI assistant of Mostafizur Rahman. Ask me anything!',
+    content: 'Hello! I am your AI assistant. Ask me anything! "Notice: First AI response may take up to 10s. Thanks for your patience."',
   },
 ];
 
