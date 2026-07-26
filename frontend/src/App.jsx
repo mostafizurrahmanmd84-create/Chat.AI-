@@ -75,8 +75,8 @@ function App() {
     <div className={`app-shell ${darkMode ? 'dark' : 'light'}`}>
       <header className="topbar">
         <div>
-          <p className="eyebrow">AI Assistant of</p>
-          <h1>Mostafizur chat AI</h1>
+          <p className="eyebrow">AI Assistant </p>
+          <h1>𝐏𝐢𝐩𝐢𝐥𝐢𝐤𝐚 𝐀𝐈</h1>
         </div>
         <button type="button" className="theme-toggle" onClick={() => setDarkMode((value) => !value)}>
           {darkMode ? '☀️ Light' : '🌙 Dark'}
