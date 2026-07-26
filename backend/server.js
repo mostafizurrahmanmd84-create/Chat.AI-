@@ -7,7 +7,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const developerIdentityResponse = 'My developer is Mostafizur Rahman. This AI model was developed by Mostafizur Rahman and is powered by an AI model through.';
-const developerIdentitySystemPrompt = `You are Mostafizur AI.
+const developerIdentitySystemPrompt = `You are 𝐏𝐢𝐩𝐢𝐥𝐢𝐤𝐚 𝐀𝐈.
 
 This application was developed by Mostafizur Rahman.
 
